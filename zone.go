@@ -76,3 +76,27 @@ func (c *Client) AddARecord(ctx context.Context, domain, subdomain, ip string) e
 	}
 	return ans.Domains[0].err()
 }
+
+// RemoveARecord удаляет A-запись с точным содержимым ip у subdomain ("@", "www").
+// Содержимое обязательно: вызова «удалить все записи имени» здесь намеренно нет.
+func (c *Client) RemoveARecord(ctx context.Context, domain, subdomain, ip string) error {
+	if ip == "" {
+		return errors.New("regru: RemoveARecord needs the record content (ip)")
+	}
+	in := map[string]any{
+		"domains":     []map[string]string{{"dname": domain}},
+		"subdomain":   subdomain,
+		"record_type": "A",
+		"content":     ip,
+	}
+	var ans struct {
+		Domains []itemResult `json:"domains"`
+	}
+	if err := c.call(ctx, "zone/remove_record", nil, in, &ans); err != nil {
+		return err
+	}
+	if len(ans.Domains) == 0 {
+		return errors.New("regru: zone/remove_record: empty answer")
+	}
+	return ans.Domains[0].err()
+}

@@ -257,3 +257,29 @@ func TestAddARecord(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestRemoveARecord(t *testing.T) {
+	c := newTestClient(t, `{"result":"success","answer":{"domains":[{"dname":"a.ru","result":"success","service_id":"1"}]}}`,
+		func(path string, f url.Values) {
+			if path != "/zone/remove_record" {
+				t.Errorf("path = %s", path)
+			}
+			var in struct {
+				Domains []map[string]string `json:"domains"`
+				Sub     string              `json:"subdomain"`
+				Type    string              `json:"record_type"`
+				Content string              `json:"content"`
+			}
+			json.Unmarshal([]byte(f.Get("input_data")), &in)
+			if in.Domains[0]["dname"] != "a.ru" || in.Sub != "www" || in.Type != "A" || in.Content != "1.2.3.4" {
+				t.Errorf("input = %+v", in)
+			}
+		})
+	if err := c.RemoveARecord(context.Background(), "a.ru", "www", "1.2.3.4"); err != nil {
+		t.Fatal(err)
+	}
+	// без содержимого запрос вообще не уходит: иначе API удалил бы все A-записи имени
+	if err := c.RemoveARecord(context.Background(), "a.ru", "www", ""); err == nil {
+		t.Fatal("empty content must be rejected")
+	}
+}
