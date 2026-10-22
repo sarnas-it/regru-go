@@ -51,6 +51,9 @@ func (r itemResult) err() error {
 		return nil
 	}
 	code := r.ErrorCode
+	if code == "" && isErrorCode(r.Result) {
+		code = r.Result // в ответах по зоне код ошибки приходит прямо в result
+	}
 	if code == "" {
 		code = "UNKNOWN"
 	}
@@ -59,4 +62,17 @@ func (r itemResult) err() error {
 		text = r.Result
 	}
 	return &APIError{Code: code, Text: text}
+}
+
+// isErrorCode сообщает, похожа ли строка на код ошибки REG.API (A-Z, 0-9, "_").
+func isErrorCode(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !(r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_') {
+			return false
+		}
+	}
+	return true
 }

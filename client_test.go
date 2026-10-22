@@ -205,3 +205,55 @@ func TestUnexpectedResponse(t *testing.T) {
 		t.Fatal("want error")
 	}
 }
+
+func TestZoneRecords(t *testing.T) {
+	c := newTestClient(t, `{"result":"success","answer":{"domains":[
+		{"dname":"a.ru","result":"success","service_id":12345,"rrs":[
+			{"content":"1.2.3.4","prio":"0","rectype":"A","state":"A","subname":"www"}]},
+		{"dname":"b.ru","result":"DOMAIN_IS_NOT_USE_REGRU_NSS"},
+		{"dname":"c.ru","result":"error","error_code":"DOMAIN_NOT_FOUND","error_text":"x"}]}}`,
+		func(path string, f url.Values) {
+			if path != "/zone/get_resource_records" {
+				t.Errorf("path = %s", path)
+			}
+		})
+	zs, err := c.ZoneRecords(context.Background(), "a.ru", "b.ru", "c.ru")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if zs[0].Err != nil || len(zs[0].Records) != 1 || zs[0].Records[0].Sub != "www" || zs[0].Records[0].Content != "1.2.3.4" {
+		t.Fatalf("zone a: %+v", zs[0])
+	}
+	if !errors.Is(zs[1].Err, ErrNotRegruNS) {
+		t.Fatalf("zone b err = %v, want ErrNotRegruNS", zs[1].Err)
+	}
+	if !errors.Is(zs[2].Err, ErrDomainNotFound) {
+		t.Fatalf("zone c err = %v", zs[2].Err)
+	}
+}
+
+func TestAddARecord(t *testing.T) {
+	c := newTestClient(t, `{"result":"success","answer":{"domains":[{"dname":"a.ru","result":"success","service_id":"1"}]}}`,
+		func(path string, f url.Values) {
+			if path != "/zone/add_alias" || f.Get("input_format") != "json" {
+				t.Errorf("path %s form %v", path, f)
+			}
+			var in struct {
+				Domains   []map[string]string `json:"domains"`
+				Subdomain string              `json:"subdomain"`
+				IP        string              `json:"ipaddr"`
+			}
+			json.Unmarshal([]byte(f.Get("input_data")), &in)
+			if in.Domains[0]["dname"] != "a.ru" || in.Subdomain != "@" || in.IP != "9.9.9.9" {
+				t.Errorf("input = %+v", in)
+			}
+		})
+	if err := c.AddARecord(context.Background(), "a.ru", "@", "9.9.9.9"); err != nil {
+		t.Fatal(err)
+	}
+
+	c = newTestClient(t, `{"result":"success","answer":{"domains":[{"dname":"a.ru","result":"DOMAIN_IS_NOT_USE_REGRU_NSS"}]}}`, nil)
+	if err := c.AddARecord(context.Background(), "a.ru", "@", "9.9.9.9"); !errors.Is(err, ErrNotRegruNS) {
+		t.Fatalf("err = %v", err)
+	}
+}
