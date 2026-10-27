@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/sarnas-it/regru-go"
+	"code.sarnas.ru/regru-go"
 )
 
 func main() {
