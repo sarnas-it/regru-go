@@ -1,11 +1,10 @@
-// Команда txtcheck — живой smoke-тест AddTXTRecord: добавляет TXT-запись в зону
-// домена и перечитывает зону, проверяя, что запись появилась с тем же текстом.
+// Команда txtcheck — живой smoke-тест полного цикла: добавляет TXT-запись
+// (AddTXTRecord), проверяет, что она читается с тем же текстом, удаляет её
+// (RemoveTXTRecord) и проверяет, что зона вернулась к исходному виду.
 //
 //	REGRU_USER=login REGRU_PASSWORD=secret go run ./examples/txtcheck example.ru [subdomain] [text]
 //
 // По умолчанию subdomain "_regru-go-test", текст "regru-go smoke <время>".
-// Запись НЕ удаляется (в клиенте пока нет RemoveTXTRecord) — снимите её
-// в личном кабинете Рег.ру после прогона.
 package main
 
 import (
@@ -55,6 +54,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	found := false
 	for _, r := range zone.Records {
 		if r.Type == "TXT" && r.Sub == sub {
 			fmt.Printf("В зоне: TXT %s = %q\n", r.Sub, r.Content)
@@ -62,11 +62,28 @@ func main() {
 				log.Fatalf("FAIL: текст не совпал: хотели %q", text)
 			}
 			fmt.Println("OK: запись появилась с тем же текстом")
-			fmt.Println("Не забудьте удалить запись в личном кабинете Рег.ру.")
-			return
+			found = true
 		}
 	}
-	log.Fatalf("FAIL: запись TXT %s не найдена в зоне после добавления", sub)
+	if !found {
+		log.Fatalf("FAIL: запись TXT %s не найдена в зоне после добавления", sub)
+	}
+
+	if err := c.RemoveTXTRecord(ctx, domain, sub, text); err != nil {
+		log.Fatalf("RemoveTXTRecord: %v", err)
+	}
+	fmt.Println("Удалена")
+
+	zone, err = zoneOf(ctx, c, domain)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, r := range zone.Records {
+		if r.Type == "TXT" && r.Sub == sub && r.Content == text {
+			log.Fatalf("FAIL: запись TXT %s всё ещё в зоне после удаления", sub)
+		}
+	}
+	fmt.Printf("OK: записей в зоне снова %d, тестовой нет — полный цикл пройден\n", len(zone.Records))
 }
 
 func zoneOf(ctx context.Context, c *regru.Client, domain string) (regru.Zone, error) {

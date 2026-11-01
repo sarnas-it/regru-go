@@ -122,3 +122,27 @@ func (c *Client) RemoveARecord(ctx context.Context, domain, subdomain, ip string
 	}
 	return ans.Domains[0].err()
 }
+
+// RemoveTXTRecord удаляет TXT-запись с точным содержимым text у subdomain.
+// Содержимое обязательно: вызова «удалить все записи имени» здесь намеренно нет.
+func (c *Client) RemoveTXTRecord(ctx context.Context, domain, subdomain, text string) error {
+	if text == "" {
+		return errors.New("regru: RemoveTXTRecord needs the record content (text)")
+	}
+	in := map[string]any{
+		"domains":     []map[string]string{{"dname": domain}},
+		"subdomain":   subdomain,
+		"record_type": "TXT",
+		"content":     text,
+	}
+	var ans struct {
+		Domains []itemResult `json:"domains"`
+	}
+	if err := c.call(ctx, "zone/remove_record", nil, in, &ans); err != nil {
+		return err
+	}
+	if len(ans.Domains) == 0 {
+		return errors.New("regru: zone/remove_record: empty answer")
+	}
+	return ans.Domains[0].err()
+}

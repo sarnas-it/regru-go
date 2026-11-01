@@ -309,3 +309,29 @@ func TestRemoveARecord(t *testing.T) {
 		t.Fatal("empty content must be rejected")
 	}
 }
+
+func TestRemoveTXTRecord(t *testing.T) {
+	c := newTestClient(t, `{"result":"success","answer":{"domains":[{"dname":"a.ru","result":"success","service_id":"1"}]}}`,
+		func(path string, f url.Values) {
+			if path != "/zone/remove_record" {
+				t.Errorf("path = %s", path)
+			}
+			var in struct {
+				Domains []map[string]string `json:"domains"`
+				Sub     string              `json:"subdomain"`
+				Type    string              `json:"record_type"`
+				Content string              `json:"content"`
+			}
+			json.Unmarshal([]byte(f.Get("input_data")), &in)
+			if in.Domains[0]["dname"] != "a.ru" || in.Sub != "_acme-challenge" || in.Type != "TXT" || in.Content != "token 123" {
+				t.Errorf("input = %+v", in)
+			}
+		})
+	if err := c.RemoveTXTRecord(context.Background(), "a.ru", "_acme-challenge", "token 123"); err != nil {
+		t.Fatal(err)
+	}
+	// без содержимого запрос вообще не уходит: иначе API удалил бы все TXT-записи имени
+	if err := c.RemoveTXTRecord(context.Background(), "a.ru", "_acme-challenge", ""); err == nil {
+		t.Fatal("empty content must be rejected")
+	}
+}
