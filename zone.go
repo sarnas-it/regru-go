@@ -77,6 +77,28 @@ func (c *Client) AddARecord(ctx context.Context, domain, subdomain, ip string) e
 	return ans.Domains[0].err()
 }
 
+// AddTXTRecord добавляет TXT-запись: subdomain "@" — для самого домена,
+// "_acme-challenge" — для поддомена. Текст передаётся как есть, без кавычек.
+// Метод не проверяет существующие записи: сначала посмотрите их через
+// ZoneRecords, иначе можно получить дубль.
+func (c *Client) AddTXTRecord(ctx context.Context, domain, subdomain, text string) error {
+	in := map[string]any{
+		"domains":   []map[string]string{{"dname": domain}},
+		"subdomain": subdomain,
+		"text":      text,
+	}
+	var ans struct {
+		Domains []itemResult `json:"domains"`
+	}
+	if err := c.call(ctx, "zone/add_txt", nil, in, &ans); err != nil {
+		return err
+	}
+	if len(ans.Domains) == 0 {
+		return errors.New("regru: zone/add_txt: empty answer")
+	}
+	return ans.Domains[0].err()
+}
+
 // RemoveARecord удаляет A-запись с точным содержимым ip у subdomain ("@", "www").
 // Содержимое обязательно: вызова «удалить все записи имени» здесь намеренно нет.
 func (c *Client) RemoveARecord(ctx context.Context, domain, subdomain, ip string) error {

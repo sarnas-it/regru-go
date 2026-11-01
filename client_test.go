@@ -258,6 +258,32 @@ func TestAddARecord(t *testing.T) {
 	}
 }
 
+func TestAddTXTRecord(t *testing.T) {
+	c := newTestClient(t, `{"result":"success","answer":{"domains":[{"dname":"a.ru","result":"success","service_id":"1"}]}}`,
+		func(path string, f url.Values) {
+			if path != "/zone/add_txt" || f.Get("input_format") != "json" {
+				t.Errorf("path %s form %v", path, f)
+			}
+			var in struct {
+				Domains   []map[string]string `json:"domains"`
+				Subdomain string              `json:"subdomain"`
+				Text      string              `json:"text"`
+			}
+			json.Unmarshal([]byte(f.Get("input_data")), &in)
+			if in.Domains[0]["dname"] != "a.ru" || in.Subdomain != "_acme-challenge" || in.Text != "token 123" {
+				t.Errorf("input = %+v", in)
+			}
+		})
+	if err := c.AddTXTRecord(context.Background(), "a.ru", "_acme-challenge", "token 123"); err != nil {
+		t.Fatal(err)
+	}
+
+	c = newTestClient(t, `{"result":"success","answer":{"domains":[{"dname":"a.ru","result":"DOMAIN_IS_NOT_USE_REGRU_NSS"}]}}`, nil)
+	if err := c.AddTXTRecord(context.Background(), "a.ru", "@", "v=spf1 ~all"); !errors.Is(err, ErrNotRegruNS) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestRemoveARecord(t *testing.T) {
 	c := newTestClient(t, `{"result":"success","answer":{"domains":[{"dname":"a.ru","result":"success","service_id":"1"}]}}`,
 		func(path string, f url.Values) {
